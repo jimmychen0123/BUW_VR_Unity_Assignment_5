@@ -18,6 +18,12 @@ public class DefaultRay : MonoBehaviour
 
     private bool gripButtonLF = false;
 
+    // YOUR CODE - BEGIN
+    private Matrix4x4 selectionInitialWT;
+
+    private Matrix4x4 selectionLocalMatrix;
+    // YOUR CODE - END
+
     void Awake()
     {
         scene = GameObject.Find("Scene");
@@ -111,24 +117,40 @@ public class DefaultRay : MonoBehaviour
 
     private void SelectObject(GameObject go)
     {
+        selectionInitialWT = go.transform.localToWorldMatrix;
         selectedObject = go;
-        selectedObject.transform.SetParent(rightHandController.transform, true); // worldPositionStays = true
+        selectedObject.transform.SetParent(rightHandController.transform, false); // worldPositionStays = true
 
         // YOUR CODE - BEGIN
         // compensate position and orientation offset of the hit game object and the rightHandController to prevent jumps
+        
+        selectedObject.transform.position = selectionInitialWT.GetColumn(3);
+        selectedObject.transform.rotation = selectionInitialWT.rotation;
+        selectedObject.transform.localScale = selectionInitialWT.lossyScale;
 
         // YOUR CODE - END
     }
 
     private void DeselectObject()
     {
+        // YOUR CODE - BEGIN
+        // compensate for jumps of the selected object when reinserting to the scene-branch
+        selectionInitialWT = selectedObject.transform.localToWorldMatrix;
+        // YOUR CODE - END
+
         selectedObject.transform.SetParent(scene.transform, true); // worldPositionStays = true
-        selectedObject = null;
+
 
         // YOUR CODE - BEGIN
         // compensate for jumps of the selected object when reinserting to the scene-branch
+        
+        selectedObject.transform.position = selectionInitialWT.GetColumn(3);
+        selectedObject.transform.rotation = selectionInitialWT.rotation;
+        selectedObject.transform.localScale = selectionInitialWT.lossyScale;
 
         // YOUR CODE - END
+
+        selectedObject = null;
     }
 
     private void Dragging2()
