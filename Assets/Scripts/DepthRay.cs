@@ -22,6 +22,11 @@ public class DepthRay : MonoBehaviour
 
     private bool gripButtonLF = false;
 
+    //YOUR CODE - BEGIN
+
+    float speed = 1.0f;
+    //YOUR CODE - END
+
     void Awake()
     {
         scene = GameObject.Find("Scene");
@@ -62,7 +67,19 @@ public class DepthRay : MonoBehaviour
 
             // Move Cursor Selection Marker
             // YOUR CODE - BEGIN
-            
+            if(joystick.y > 0.005f && cursorBall.transform.localPosition.z <= 10.0f)
+            {
+                cursorBall.transform.Translate(0.0f, 0.0f, speed * joystick.y * Time.deltaTime, Space.Self);
+
+
+            }
+
+            if(joystick.y < -0.005f && cursorBall.transform.localPosition.z >=0.2)
+            {
+
+                cursorBall.transform.Translate(0.0f, 0.0f, speed * joystick.y * Time.deltaTime, Space.Self);
+
+            }
             // YOUR CODE - END   
 
             UpdateRayVisualization(true);
@@ -83,7 +100,8 @@ public class DepthRay : MonoBehaviour
                 {
                     Debug.Log("Collided with Object: " + collisionDetector.collidedObject.name);
                     // YOUR CODE - BEGIN
-                    // SelectObject(???);
+                    SelectObject(collisionDetector.collidedObject);
+                    
                     // YOUR CODE - END   
                 }
 
@@ -103,14 +121,17 @@ public class DepthRay : MonoBehaviour
     private void SelectObject(GameObject go)
     {
         // YOUR CODE - BEGIN
-
+        selectedObject = go;
+        selectedObject.transform.SetParent(cursorBall.transform, true);
         // YOUR CODE - END  
     }
 
     private void DeselectObject()
     {
         // YOUR CODE - BEGIN
-
+        
+        selectedObject.transform.SetParent(scene.transform, true);
+        selectedObject = null;
         // YOUR CODE - END  
     }
 
@@ -133,7 +154,7 @@ public class DepthRay : MonoBehaviour
 
             // Update the CursorSphere position every frame
             // YOUR CODE - BEGIN
-
+            
             // YOUR CODE - END  
         }
     }
