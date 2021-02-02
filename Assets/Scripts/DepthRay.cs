@@ -22,10 +22,18 @@ public class DepthRay : MonoBehaviour
 
     private bool gripButtonLF = false;
 
-    //YOUR CODE - BEGIN
-    // translation speed of cursor ball
-    float speed = 1.0f;
-    //YOUR CODE - END
+    private Vector3[] positions;
+    private Vector3[] pos;
+    private int index = 0;
+    public float speed;
+    public float moveSpeed;
+    private GameObject cameraOffset;
+    private GameObject xrRig;
+    private GameObject deselectedObject;
+    private Matrix4x4 newMatrix;
+    private Matrix4x4 initialMatrix;
+    private bool initialButtonPress = true;
+
 
     void Awake()
     {
@@ -49,6 +57,9 @@ public class DepthRay : MonoBehaviour
             collisionDetector = cursorBall.GetComponent<CollisionDetector>();
             cursorBall.transform.position = rightHandController.transform.position + rightHandController.transform.forward * cursorDistance;
             cursorBall.SetActive(false);
+
+            cameraOffset = GameObject.Find("Camera Offset");
+            xrRig = GameObject.Find("XR Rig");
         }
 
         //Debug.Log("DefaultRay Start: " + rightHandController);
@@ -63,26 +74,46 @@ public class DepthRay : MonoBehaviour
             // mapping: joystick
             Vector2 joystick;
             rightXRController.inputDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out joystick);
-            //Debug.Log("Joystick: x" + joystick.x + " y" + joystick.y);
+            // Debug.Log("Joystick: x" + joystick.x + " y" + joystick.y);
+            // joystick = new Vector2(joystick.x, joystick.y);
+
 
             // Move Cursor Selection Marker
             // YOUR CODE - BEGIN
+            speed = 1.0f;
+            moveSpeed = 1.0f;
+            
 
-            // set the threshold for joystick input value and the distance allowed for moving forward
-            if(joystick.y > 0.005f && cursorBall.transform.localPosition.z <= 10.0f)
-            {
-                //frame independently
-                cursorBall.transform.Translate(0.0f, 0.0f, speed * joystick.y * Time.deltaTime, Space.Self);
+            positions = new Vector3[rightRayRenderer.positionCount];
+            // rightRayRenderer.GetPositions(positions);
+            // Debug.Log("POSITIONS" + positions);
+
+            // pos = positions;
 
 
+            if (joystick.y > 0) { 
+                cursorBall.transform.position = Vector3.MoveTowards(cursorBall.transform.position,
+                                                                rightHandController.transform.position + rightHandController.transform.forward * 10.0f,
+                                                                speed  * Time.deltaTime);
+            } 
+
+             if (joystick.y < 0) { 
+                cursorBall.transform.position = Vector3.MoveTowards(cursorBall.transform.position,
+                                                                rightHandController.transform.position,
+                                                                speed * Time.deltaTime);
             }
-            //set the threshold for joystick input value and the distance allowed for moving backward
-            if(joystick.y < -0.005f && cursorBall.transform.localPosition.z >=0.2)
-            {
+            // cursorBall.transform.position = Vector3.Lerp(pos[index],
+            //                                                     pos[index+1],
+            //                                                     moveSpeed-index);
 
-                cursorBall.transform.Translate(0.0f, 0.0f, speed * joystick.y * Time.deltaTime, Space.Self);
+            // Debug.Log("Position index: " + pos[index]);
+            // Debug.Log("Ball position: " + cursorBall.transform.position);
+            // if (cursorBall.transform.position == pos[index]) {
+            // if (joystick.y > 0) { 
+            //     index += 1;
+            // }
 
-            }
+    
             // YOUR CODE - END   
 
             UpdateRayVisualization(true);
@@ -104,7 +135,8 @@ public class DepthRay : MonoBehaviour
                     Debug.Log("Collided with Object: " + collisionDetector.collidedObject.name);
                     // YOUR CODE - BEGIN
                     SelectObject(collisionDetector.collidedObject);
-                    
+
+
                     // YOUR CODE - END   
                 }
 
@@ -125,16 +157,92 @@ public class DepthRay : MonoBehaviour
     {
         // YOUR CODE - BEGIN
         selectedObject = go;
-        selectedObject.transform.SetParent(cursorBall.transform, true);
+        selectedObject.transform.SetParent(cursorBall.transform, false); // worldPositionStays = false
+        
+        // Inverse of Cursor Sphere
+        Matrix4x4 cursorMat = Matrix4x4.TRS(cursorBall.transform.localPosition, 
+                                           cursorBall.transform.localRotation,
+                                           cursorBall.transform.localScale);
+        Matrix4x4 cursorMatInverse = cursorMat.inverse;
+        // Inverse of RightHandController
+        Matrix4x4 deviceMat = Matrix4x4.TRS(rightHandController.transform.localPosition, 
+                                           rightHandController.transform.localRotation,
+                                           rightHandController.transform.localScale);
+        Matrix4x4 deviceMatInverse = deviceMat.inverse;
+
+        // Inverse of Camera Offset
+        Matrix4x4 cameraMat = Matrix4x4.TRS(cameraOffset.transform.localPosition, 
+                                           cameraOffset.transform.localRotation,
+                                           cameraOffset.transform.localScale);
+        Matrix4x4 cameraMatInverse = cameraMat.inverse;
+
+        // Inverse of XR Rig
+        Matrix4x4 xrRigMat = Matrix4x4.TRS(xrRig.transform.localPosition, 
+                                           xrRig.transform.localRotation,
+                                           xrRig.transform.localScale);
+        Matrix4x4 xrRigMatInverse = xrRigMat.inverse;
+
+        // Scene
+        Matrix4x4 sceneMat = Matrix4x4.TRS(scene.transform.localPosition, 
+                                           scene.transform.localRotation,
+                                           scene.transform.localScale);
+
+        // O
+        Matrix4x4 localMat = Matrix4x4.TRS(selectedObject.transform.localPosition, 
+                                           selectedObject.transform.localRotation,
+                                           selectedObject.transform.localScale);
+
+        newMatrix = cursorMatInverse * deviceMatInverse * xrRigMatInverse * sceneMat * localMat ;
+        SetTransformByMatrix(selectedObject, newMatrix);
+
+
         // YOUR CODE - END  
     }
 
     private void DeselectObject()
     {
         // YOUR CODE - BEGIN
-        
-        selectedObject.transform.SetParent(scene.transform, true);
+        selectedObject.transform.SetParent(scene.transform, false); // worldPositionStays = false
+        // YOUR CODE - BEGIN
+        // compensate for jumps of the selected object when reinserting to the scene-branch
+        // Inverse of Scene
+        Matrix4x4 sceneMat = Matrix4x4.TRS(scene.transform.localPosition, 
+                                           scene.transform.localRotation,
+                                           scene.transform.localScale);
+        Matrix4x4 sceneMatInverse = sceneMat.inverse;
+
+        // XR Rig
+        Matrix4x4 xrRigMat = Matrix4x4.TRS(xrRig.transform.localPosition, 
+                                           xrRig.transform.localRotation,
+                                           xrRig.transform.localScale);
+
+        // Camera Offset
+        Matrix4x4 cameraMat = Matrix4x4.TRS(cameraOffset.transform.localPosition, 
+                                           cameraOffset.transform.localRotation,
+                                           cameraOffset.transform.localScale);
+
+
+        // RightHandController
+        Matrix4x4 deviceMat = Matrix4x4.TRS(rightHandController.transform.localPosition, 
+                                           rightHandController.transform.localRotation,
+                                           rightHandController.transform.localScale);
+        // Cursor Sphere
+        Matrix4x4 cursorMat = Matrix4x4.TRS(cursorBall.transform.localPosition, 
+                                           cursorBall.transform.localRotation,
+                                           cursorBall.transform.localScale);
+
+         // O'1
+        Matrix4x4 localMat = Matrix4x4.TRS(selectedObject.transform.localPosition, 
+                                            selectedObject.transform.localRotation,
+                                            selectedObject.transform.localScale);
+        // Matrix4x4 localMatInverse = localMat.inverse;
+    
+        Matrix4x4 newMat = sceneMatInverse * xrRigMat * cameraMat * deviceMat * cursorMat * newMatrix;
+        SetTransformByMatrix(selectedObject, newMat);
+        // YOUR CODE - END
+
         selectedObject = null;
+
         // YOUR CODE - END  
     }
 
@@ -155,20 +263,18 @@ public class DepthRay : MonoBehaviour
             rightRayRenderer.SetPosition(0, rightHandController.transform.position);
             rightRayRenderer.SetPosition(1, rightHandController.transform.position + rightHandController.transform.forward * 10.0f);
 
-            // Update the CursorSphere collide status
+            // Update the CursorSphere position every frame
             // YOUR CODE - BEGIN
-            
-            if (collisionDetector.collided && !gripButtonLF)
-            {
-                cursorBall.GetComponent<MeshRenderer>().material.color = Color.yellow;           
-            }
-            else if(!collisionDetector.collided && !gripButtonLF)
-            {
-                cursorBall.GetComponent<MeshRenderer>().material.color = Color.magenta;
-            }
-            
+
             // YOUR CODE - END  
         }
+    }
+
+    void SetTransformByMatrix(GameObject go, Matrix4x4 mat) // helper function
+    {
+        go.transform.localPosition = mat.GetColumn(3);
+        go.transform.localRotation = mat.rotation;
+        go.transform.localScale = mat.lossyScale;
     }
 
 
