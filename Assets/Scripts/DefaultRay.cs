@@ -19,9 +19,11 @@ public class DefaultRay : MonoBehaviour
     private bool gripButtonLF = false;
 
     // YOUR CODE - BEGIN
+    //For dragging1(): store the original world transform of selected game object
     private Matrix4x4 selectionInitialWT;
 
-    private Matrix4x4 selectionLocalMatrix;
+    //For dragging2(): this is used to assign a child gameobject of input device(rightHand controller) as virtually attaching selected game object to input device
+    private GameObject virtualObject;
     // YOUR CODE - END
 
     void Awake()
@@ -52,6 +54,10 @@ public class DefaultRay : MonoBehaviour
             rightRayIntersectionSphere.SetActive(false); // hide
 
         }
+        //YOUR CODE - BEGIN
+        //When application starts, assign a child gameobject of input device as selected gameobject virtually attached to input device 
+        virtualObject = GameObject.Find("[RightHand Controller] Model");
+        //YOUR CODE - END
     }
 
 
@@ -82,8 +88,8 @@ public class DefaultRay : MonoBehaviour
             rightRayIntersectionSphere.SetActive(false); // hide
         }
 
-        Dragging1(); // dragging version1: attach selected object to ray 
-        //Dragging2(); // dragging version2: move only virtually attached object dummy
+        //Dragging1(); // dragging version1: attach selected object to ray 
+        Dragging2(); // dragging version2: move only virtually attached object dummy
 
     }
 
@@ -117,13 +123,20 @@ public class DefaultRay : MonoBehaviour
 
     private void SelectObject(GameObject go)
     {
+        //YOUR CODE - BEGIN
+
+        //store the selection's original world transform before setting it in the same position but relative to the NEW parent node
         selectionInitialWT = go.transform.localToWorldMatrix;
+
+        //YOUR CODE - END
+
         selectedObject = go;
         selectedObject.transform.SetParent(rightHandController.transform, false); // worldPositionStays = true
 
         // YOUR CODE - BEGIN
         // compensate position and orientation offset of the hit game object and the rightHandController to prevent jumps
         
+        //set the selection in the position of its original world transform and then selection moves with input device
         selectedObject.transform.position = selectionInitialWT.GetColumn(3);
         selectedObject.transform.rotation = selectionInitialWT.rotation;
         selectedObject.transform.localScale = selectionInitialWT.lossyScale;
@@ -135,15 +148,18 @@ public class DefaultRay : MonoBehaviour
     {
         // YOUR CODE - BEGIN
         // compensate for jumps of the selected object when reinserting to the scene-branch
+
+        //store the selection's world transform after being moved around by input device
         selectionInitialWT = selectedObject.transform.localToWorldMatrix;
         // YOUR CODE - END
 
-        selectedObject.transform.SetParent(scene.transform, true); // worldPositionStays = true
+        selectedObject.transform.SetParent(scene.transform, false); // worldPositionStays = true
 
 
         // YOUR CODE - BEGIN
         // compensate for jumps of the selected object when reinserting to the scene-branch
         
+        //set the selection in the position of where it was moved by input device
         selectedObject.transform.position = selectionInitialWT.GetColumn(3);
         selectedObject.transform.rotation = selectionInitialWT.rotation;
         selectedObject.transform.localScale = selectionInitialWT.lossyScale;
@@ -161,7 +177,46 @@ public class DefaultRay : MonoBehaviour
         //Debug.Log("middle finger rocker: " + gripButton);
 
         // YOUR CODE - BEGIN
+        
+        if (gripButton != gripButtonLF) // state changed
+        {
+            if (gripButton) // up (false->true)
+            {
+                if (rightHit.collider != null && selectedObject == null)
+                {
+                    //store the selected game object
+                    selectedObject = rightHit.collider.gameObject;
+                    //store the selection's world transform before being moved around by input device
+                    selectionInitialWT = rightHit.collider.gameObject.transform.localToWorldMatrix;
+                    
+                    //set the child gameobject of input device in the same tranform as selection
+                    virtualObject.transform.position = selectionInitialWT.GetColumn(3);
+                    virtualObject.transform.rotation = selectionInitialWT.rotation;
+                    virtualObject.transform.localScale = selectionInitialWT.lossyScale;
 
+                    
+                }
+                
+            }
+            else // down (true->false)
+            {
+                if (selectedObject != null)
+                {
+                    //DeselectObject();
+                    selectedObject = null;
+                }
+            }
+        }
+        
+        else if(gripButton) //when user still press the button and have selection moved by input device
+        {
+            //now the selection is moved as the virtual game object
+            selectedObject.transform.position = virtualObject.transform.localToWorldMatrix.GetColumn(3);
+            selectedObject.transform.rotation = virtualObject.transform.localToWorldMatrix.rotation;
+            selectedObject.transform.localScale = virtualObject.transform.localToWorldMatrix.lossyScale;
+
+
+        }
         // YOUR CODE - END
 
         gripButtonLF = gripButton;
