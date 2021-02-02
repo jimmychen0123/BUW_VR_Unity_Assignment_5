@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR;
@@ -16,15 +16,15 @@ public class DefaultRay : MonoBehaviour
     public LayerMask myLayerMask;
     private GameObject selectedObject = null;
 
+    private GameObject cameraOffset;
+    private GameObject xrRig;
+    private GameObject deselectedObject;
+    private Matrix4x4 newMatrix;
+    private Matrix4x4 initialMatrix;
+    private bool initialButtonPress = true;
+
+
     private bool gripButtonLF = false;
-
-    // YOUR CODE - BEGIN
-    //For dragging1(): store the original world transform of selected game object
-    private Matrix4x4 selectionInitialWT;
-
-    //For dragging2(): this is used to assign a child gameobject of input device(rightHand controller) as virtually attaching selected game object to input device
-    private GameObject virtualObject;
-    // YOUR CODE - END
 
     void Awake()
     {
@@ -53,11 +53,9 @@ public class DefaultRay : MonoBehaviour
             rightRayIntersectionSphere.GetComponent<SphereCollider>().enabled = false; // disable for picking ?!
             rightRayIntersectionSphere.SetActive(false); // hide
 
+            cameraOffset = GameObject.Find("Camera Offset");
+            xrRig = GameObject.Find("XR Rig");
         }
-        //YOUR CODE - BEGIN
-        //When application starts, assign a child gameobject of input device as selected gameobject virtually attached to input device 
-        virtualObject = GameObject.Find("[RightHand Controller] Model");
-        //YOUR CODE - END
     }
 
 
@@ -123,47 +121,81 @@ public class DefaultRay : MonoBehaviour
 
     private void SelectObject(GameObject go)
     {
-        //YOUR CODE - BEGIN
-
-        //store the selection's original world transform before setting it in the same position but relative to the NEW parent node
-        selectionInitialWT = go.transform.localToWorldMatrix;
-
-        //YOUR CODE - END
-
         selectedObject = go;
-        selectedObject.transform.SetParent(rightHandController.transform, false); // worldPositionStays = true
+        selectedObject.transform.SetParent(rightHandController.transform, false); // worldPositionStays = false
 
         // YOUR CODE - BEGIN
         // compensate position and orientation offset of the hit game object and the rightHandController to prevent jumps
-        
-        //set the selection in the position of its original world transform and then selection moves with input device
-        selectedObject.transform.position = selectionInitialWT.GetColumn(3);
-        selectedObject.transform.rotation = selectionInitialWT.rotation;
-        selectedObject.transform.localScale = selectionInitialWT.lossyScale;
+        // Inverse of RightHandController
+        Matrix4x4 deviceMat = Matrix4x4.TRS(rightHandController.transform.localPosition, 
+                                           rightHandController.transform.localRotation,
+                                           rightHandController.transform.localScale);
+        Matrix4x4 deviceMatInverse = deviceMat.inverse;
+
+        // Inverse of Camera Offset
+        Matrix4x4 cameraMat = Matrix4x4.TRS(cameraOffset.transform.localPosition, 
+                                           cameraOffset.transform.localRotation,
+                                           cameraOffset.transform.localScale);
+        Matrix4x4 cameraMatInverse = cameraMat.inverse;
+
+        // Inverse of XR Rig
+        Matrix4x4 xrRigMat = Matrix4x4.TRS(xrRig.transform.localPosition, 
+                                           xrRig.transform.localRotation,
+                                           xrRig.transform.localScale);
+        Matrix4x4 xrRigMatInverse = xrRigMat.inverse;
+
+        // Scene
+        Matrix4x4 sceneMat = Matrix4x4.TRS(scene.transform.localPosition, 
+                                           scene.transform.localRotation,
+                                           scene.transform.localScale);
+
+        // O
+        Matrix4x4 localMat = Matrix4x4.TRS(selectedObject.transform.localPosition, 
+                                           selectedObject.transform.localRotation,
+                                           selectedObject.transform.localScale);
+
+        newMatrix = deviceMatInverse * xrRigMatInverse * sceneMat * localMat ;
+        SetTransformByMatrix(selectedObject, newMatrix);
 
         // YOUR CODE - END
     }
 
     private void DeselectObject()
     {
+        selectedObject.transform.SetParent(scene.transform, false); // worldPositionStays = false
         // YOUR CODE - BEGIN
         // compensate for jumps of the selected object when reinserting to the scene-branch
+        // Inverse of Scene
+        Matrix4x4 sceneMat = Matrix4x4.TRS(scene.transform.localPosition, 
+                                           scene.transform.localRotation,
+                                           scene.transform.localScale);
+        Matrix4x4 sceneMatInverse = sceneMat.inverse;
 
-        //store the selection's world transform after being moved around by input device
-        selectionInitialWT = selectedObject.transform.localToWorldMatrix;
-        // YOUR CODE - END
+        // XR Rig
+        Matrix4x4 xrRigMat = Matrix4x4.TRS(xrRig.transform.localPosition, 
+                                           xrRig.transform.localRotation,
+                                           xrRig.transform.localScale);
 
-        selectedObject.transform.SetParent(scene.transform, false); // worldPositionStays = true
+        // Camera Offset
+        Matrix4x4 cameraMat = Matrix4x4.TRS(cameraOffset.transform.localPosition, 
+                                           cameraOffset.transform.localRotation,
+                                           cameraOffset.transform.localScale);
 
 
-        // YOUR CODE - BEGIN
-        // compensate for jumps of the selected object when reinserting to the scene-branch
-        
-        //set the selection in the position of where it was moved by input device
-        selectedObject.transform.position = selectionInitialWT.GetColumn(3);
-        selectedObject.transform.rotation = selectionInitialWT.rotation;
-        selectedObject.transform.localScale = selectionInitialWT.lossyScale;
+        // RightHandController
+        Matrix4x4 deviceMat = Matrix4x4.TRS(rightHandController.transform.localPosition, 
+                                           rightHandController.transform.localRotation,
+                                           rightHandController.transform.localScale);
 
+
+         // O'1
+        Matrix4x4 localMat = Matrix4x4.TRS(selectedObject.transform.localPosition, 
+                                            selectedObject.transform.localRotation,
+                                            selectedObject.transform.localScale);
+        // Matrix4x4 localMatInverse = localMat.inverse;
+    
+        Matrix4x4 newMat = sceneMatInverse * xrRigMat * cameraMat * deviceMat * newMatrix;
+        SetTransformByMatrix(selectedObject, newMat);
         // YOUR CODE - END
 
         selectedObject = null;
@@ -177,46 +209,96 @@ public class DefaultRay : MonoBehaviour
         //Debug.Log("middle finger rocker: " + gripButton);
 
         // YOUR CODE - BEGIN
-        
-        if (gripButton != gripButtonLF) // state changed
+         if (gripButton != gripButtonLF) // state changed
         {
             if (gripButton) // up (false->true)
             {
+
                 if (rightHit.collider != null && selectedObject == null)
                 {
-                    //store the selected game object
-                    selectedObject = rightHit.collider.gameObject;
-                    //store the selection's world transform before being moved around by input device
-                    selectionInitialWT = rightHit.collider.gameObject.transform.localToWorldMatrix;
-                    
-                    //set the child gameobject of input device in the same tranform as selection
-                    virtualObject.transform.position = selectionInitialWT.GetColumn(3);
-                    virtualObject.transform.rotation = selectionInitialWT.rotation;
-                    virtualObject.transform.localScale = selectionInitialWT.lossyScale;
 
-                    
-                }
+                    if (initialButtonPress) {
+                        
+                    selectedObject = rightHit.collider.gameObject;
+
+                    // Inverse of RightHandController
+                    Matrix4x4 deviceMat = Matrix4x4.TRS(rightHandController.transform.localPosition, 
+                                                    rightHandController.transform.localRotation,
+                                                    rightHandController.transform.localScale);
+                    Matrix4x4 deviceMatInverse = deviceMat.inverse;
+
+                    // Inverse of Camera Offset
+                    Matrix4x4 cameraMat = Matrix4x4.TRS(cameraOffset.transform.localPosition, 
+                                                    cameraOffset.transform.localRotation,
+                                                    cameraOffset.transform.localScale);
+                    Matrix4x4 cameraMatInverse = cameraMat.inverse;
+
+                    // Inverse of XR Rig
+                    Matrix4x4 xrRigMat = Matrix4x4.TRS(xrRig.transform.localPosition, 
+                                                    xrRig.transform.localRotation,
+                                                    xrRig.transform.localScale);
+                    Matrix4x4 xrRigMatInverse = xrRigMat.inverse;
+
+                    // Scene
+                    Matrix4x4 sceneMat = Matrix4x4.TRS(scene.transform.localPosition, 
+                                                    scene.transform.localRotation,
+                                                    scene.transform.localScale);
+
+                    // O
+                    Matrix4x4 localMat = Matrix4x4.TRS(selectedObject.transform.localPosition, 
+                                                    selectedObject.transform.localRotation,
+                                                    selectedObject.transform.localScale);
+
+                    initialMatrix = deviceMatInverse * cameraMatInverse * xrRigMatInverse * sceneMat * localMat ;
                 
+                    // initialMatrix = deviceMatInverse * xrRigMatInverse * sceneMat * localMat ;
+                    SetTransformByMatrix(selectedObject, initialMatrix);
+
+                    initialButtonPress = false;
+                    } 
+                } 
             }
             else // down (true->false)
             {
-                if (selectedObject != null)
-                {
-                    //DeselectObject();
-                    selectedObject = null;
-                }
+                initialButtonPress = true;
+                selectedObject = null;
             }
         }
+
+        if(!initialButtonPress && selectedObject != null) {
+            // Inverse of Scene
+            Matrix4x4 sceneMat = Matrix4x4.TRS(scene.transform.localPosition, 
+                                            scene.transform.localRotation,
+                                            scene.transform.localScale);
+            Matrix4x4 sceneMatInverse = sceneMat.inverse;
+
+            // XR Rig
+            Matrix4x4 xrRigMat = Matrix4x4.TRS(xrRig.transform.localPosition, 
+                                            xrRig.transform.localRotation,
+                                            xrRig.transform.localScale);
+
+            // Camera Offset
+            Matrix4x4 cameraMat = Matrix4x4.TRS(cameraOffset.transform.localPosition, 
+                                            cameraOffset.transform.localRotation,
+                                            cameraOffset.transform.localScale);
+
+
+            // RightHandController
+            Matrix4x4 deviceMat = Matrix4x4.TRS(rightHandController.transform.localPosition, 
+                                            rightHandController.transform.localRotation,
+                                            rightHandController.transform.localScale);
+
+
+            // O'1
+            // Matrix4x4 localMat = Matrix4x4.TRS(selectedObject.transform.localPosition, 
+            //                                     selectedObject.transform.localRotation,
+            //                                     selectedObject.transform.localScale);
+            // Matrix4x4 localMatInverse = localMat.inverse;
         
-        else if(gripButton) //when user still press the button and have selection moved by input device
-        {
-            //now the selection is moved as the virtual game object
-            selectedObject.transform.position = virtualObject.transform.localToWorldMatrix.GetColumn(3);
-            selectedObject.transform.rotation = virtualObject.transform.localToWorldMatrix.rotation;
-            selectedObject.transform.localScale = virtualObject.transform.localToWorldMatrix.lossyScale;
-
-
+            Matrix4x4 newMat = sceneMatInverse * xrRigMat * cameraMat * deviceMat * initialMatrix;
+            SetTransformByMatrix(selectedObject, newMat);
         }
+
         // YOUR CODE - END
 
         gripButtonLF = gripButton;
