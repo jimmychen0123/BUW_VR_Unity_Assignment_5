@@ -23,7 +23,7 @@ public class DepthRay : MonoBehaviour
     private bool gripButtonLF = false;
 
     //YOUR CODE - BEGIN
-
+    // translation speed of cursor ball
     float speed = 1.0f;
     //YOUR CODE - END
 
@@ -67,13 +67,16 @@ public class DepthRay : MonoBehaviour
 
             // Move Cursor Selection Marker
             // YOUR CODE - BEGIN
+
+            // set the threshold for joystick input value and the distance allowed for moving forward
             if(joystick.y > 0.005f && cursorBall.transform.localPosition.z <= 10.0f)
             {
+                //frame independently
                 cursorBall.transform.Translate(0.0f, 0.0f, speed * joystick.y * Time.deltaTime, Space.Self);
 
 
             }
-
+            //set the threshold for joystick input value and the distance allowed for moving backward
             if(joystick.y < -0.005f && cursorBall.transform.localPosition.z >=0.2)
             {
 
@@ -152,8 +155,17 @@ public class DepthRay : MonoBehaviour
             rightRayRenderer.SetPosition(0, rightHandController.transform.position);
             rightRayRenderer.SetPosition(1, rightHandController.transform.position + rightHandController.transform.forward * 10.0f);
 
-            // Update the CursorSphere position every frame
+            // Update the CursorSphere collide status
             // YOUR CODE - BEGIN
+            
+            if (collisionDetector.collided && !gripButtonLF)
+            {
+                cursorBall.GetComponent<MeshRenderer>().material.color = Color.yellow;           
+            }
+            else if(!collisionDetector.collided && !gripButtonLF)
+            {
+                cursorBall.GetComponent<MeshRenderer>().material.color = Color.magenta;
+            }
             
             // YOUR CODE - END  
         }
