@@ -23,8 +23,16 @@ public class GoGoScript : MonoBehaviour
     private GameObject selectedObject;
 
     private bool gripButtonLF = false;
+    //YOUR CODE BEGIN
+    private Vector3 headToRightHandCenter;
+    public float distanceOnXZPlane;
+    public float IsomorphicDistance;
+    public float nonIsomorphicDistance;
+    private float k = 25.0f;
 
+    private float speed = 1.0f;
 
+    //YOUR CODE END
     // Start is called before the first frame update
     void Awake()
     {
@@ -48,6 +56,36 @@ public class GoGoScript : MonoBehaviour
         // YOUR CODE - BEGIN
         // GoGo behavior
 
+        //compute the distance between RightCenter and MainCamera in the XZ plane
+        //https://answers.unity.com/questions/51721/distance-between-2-objects-without-y.html
+        headToRightHandCenter = rightHandCenter.transform.position - head.transform.position;
+        headToRightHandCenter.y = 0;
+        distanceOnXZPlane = headToRightHandCenter.magnitude;
+
+        //get the distance between rightCenter and MainCamera 
+        IsomorphicDistance = Vector3.Distance(rightHandCenter.transform.position, head.transform.position);
+
+        if(distanceOnXZPlane > threshhold) //apply non-isomorphic distance scaling
+        {
+
+            //compute the non isomorphic distance
+            nonIsomorphicDistance = IsomorphicDistance + k * Mathf.Pow(IsomorphicDistance - threshhold, 2);
+
+            //compute the rightHand's position with keeping distance from head by using MoveTowards to have smooth transition
+            //https://docs.unity3d.com/ScriptReference/Vector3.MoveTowards.html
+            //https://answers.unity.com/questions/292084/keeping-distance-between-two-gameobjects.html
+            rightHand.transform.position = Vector3.MoveTowards(rightHand.transform.position, (rightHandCenter.transform.position - head.transform.position).normalized * nonIsomorphicDistance + rightHandCenter.transform.position, 1.0f * Time.deltaTime);
+
+            //rightHandCollider follow along the rightHand
+            rightHandColliderProxy.transform.position = Vector3.MoveTowards(rightHand.transform.position, (rightHandCenter.transform.position - head.transform.position).normalized * nonIsomorphicDistance + rightHandCenter.transform.position, 1.0f * Time.deltaTime); ;
+
+        }
+        else //apply isomorphic distance scaling, assuming rightHandCenter(controller movement) to physical hand is 1:1
+        {
+            rightHand.transform.position = Vector3.MoveTowards(rightHand.transform.position, rightHandCenter.transform.position, 1.0f * Time.deltaTime);
+            rightHandColliderProxy.transform.position = Vector3.MoveTowards(rightHandColliderProxy.transform.position, rightHandCenter.transform.position, 1.0f * Time.deltaTime);
+
+        }
         // YOUR CODE - END   
 
         // mapping: grip button (middle finger)
@@ -63,7 +101,7 @@ public class GoGoScript : MonoBehaviour
                 {
                     Debug.Log("Collided with Object: " + rightDetector.collidedObject.name);
                     // YOUR CODE - BEGIN
-                    // SelectObject(???);
+                    SelectObject(rightDetector.collidedObject);
                     // YOUR CODE - END   
                 }
             }
@@ -82,14 +120,23 @@ public class GoGoScript : MonoBehaviour
     private void SelectObject(GameObject go)
     {
         // YOUR CODE - BEGIN
+        selectedObject = go;
+        
+        selectedObject.transform.SetParent(rightHand.transform, true);
 
+        // Update the hand collider'color if selecting object sucessfully
+        rightHandColliderProxy.GetComponent<MeshRenderer>().material.color = Color.yellow;
+        
+        
         // YOUR CODE - END  
     }
 
     private void DeselectObject()
     {
         // YOUR CODE - BEGIN
-
+        selectedObject.transform.SetParent(scene.transform, true);
+        selectedObject = null;
+        rightHandColliderProxy.GetComponent<MeshRenderer>().material.color = Color.magenta;
         // YOUR CODE - END  
     }
 
