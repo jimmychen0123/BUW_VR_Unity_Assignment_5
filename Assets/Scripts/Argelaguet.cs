@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -18,11 +18,16 @@ public class Argelaguet : MonoBehaviour
     private RaycastHit rightHit;
     public LayerMask myLayerMask;
 
+    private GameObject scene;
+    private GameObject worldIntersectionSphere;
+
+
 
     private void Awake()
     {
         mainCamera = GameObject.Find("Main Camera");
         rightHandController = GameObject.Find("RightHand Controller");
+        scene = GameObject.Find("Scene");
 
         if (selectionRayGO == null)
         {
@@ -60,6 +65,21 @@ public class Argelaguet : MonoBehaviour
             rightRayIntersectionSphere.GetComponent<SphereCollider>().enabled = false; // disable for picking ?!
             rightRayIntersectionSphere.SetActive(false); // hide
         }
+
+        
+        // if (worldIntersectionSphere == null)
+        // {
+        //     // geometry for intersection visualization
+        //     worldIntersectionSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        //     //rightRayIntersectionSphere.transform.parent = this.gameObject.transform;
+        //     worldIntersectionSphere.name = "World Intersection Sphere";
+        //     // rightRayIntersectionSphere.transform.localScale = new Vector3(0.05f, 0.05f, 0.05f);
+        //     worldIntersectionSphere.GetComponent<MeshRenderer>().material.color = Color.yellow;
+        //     worldIntersectionSphere.GetComponent<SphereCollider>().enabled = false; // disable for picking ?!
+        //     worldIntersectionSphere.SetActive(true); // show
+        //     scene.transform.SetParent(worldIntersectionSphere.transform, false);
+
+        // }
         
     }
 
@@ -71,7 +91,32 @@ public class Argelaguet : MonoBehaviour
 
         // YOUR CODE - BEGIN
         // compute selection and visualize selection ray
+        if (Physics.Raycast(mainCamera.transform.position, mainCamera.transform.TransformDirection(Vector3.forward), out rightHit, Mathf.Infinity))
+        {
+            Debug.Log("Did Hit");
+            // update ray visualization
+            selectionRayLR.SetPosition(0, mainCamera.transform.position);
+            selectionRayLR.SetPosition(1, rightHit.point);
 
+            feedbackRayLR.SetPosition(0, rightHandController.transform.position);
+            feedbackRayLR.SetPosition(1, rightHit.point);
+
+            // update intersection sphere visualization
+            rightRayIntersectionSphere.SetActive(true); // show
+            rightRayIntersectionSphere.transform.position = rightHit.point;
+        }
+        else // ray does not intersect with objects
+        {
+            // update ray visualization
+            selectionRayLR.SetPosition(0, mainCamera.transform.position);
+            selectionRayLR.SetPosition(1, mainCamera.transform.position + mainCamera.transform.TransformDirection(Vector3.forward) * 1000);
+
+            feedbackRayLR.SetPosition(0, mainCamera.transform.position);
+            feedbackRayLR.SetPosition(1, mainCamera.transform.position + mainCamera.transform.TransformDirection(Vector3.forward) * 1000);
+
+            // update intersection sphere visualization
+            rightRayIntersectionSphere.SetActive(false); // hide
+        }
         // visualize feedback ray
         // YOUR CODE - END
     }
