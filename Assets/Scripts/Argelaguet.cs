@@ -72,6 +72,34 @@ public class Argelaguet : MonoBehaviour
         // YOUR CODE - BEGIN
         // compute selection and visualize selection ray
 
+        //selection ray starts at eye(main camera), but direction of ray is defined by hand controller
+        if (Physics.Raycast(mainCamera.transform.position, rightHandController.transform.TransformDirection(Vector3.forward), out rightHit, Mathf.Infinity))
+        {
+            Debug.Log("Did Hit");
+            // update ray visualization
+            selectionRayLR.SetPosition(0, mainCamera.transform.position);
+            selectionRayLR.SetPosition(1, rightHit.point);
+
+            feedbackRayLR.SetPosition(0, rightHandController.transform.position);
+            feedbackRayLR.SetPosition(1, rightHit.point);
+
+            // update intersection sphere visualization
+            rightRayIntersectionSphere.SetActive(true); // show
+            rightRayIntersectionSphere.transform.position = rightHit.point;
+        }
+        else // ray does not intersect with objects
+        {
+            // update ray visualization
+            selectionRayLR.SetPosition(0, mainCamera.transform.position);
+            selectionRayLR.SetPosition(1, rightHandController.transform.position + rightHandController.transform.TransformDirection(Vector3.forward) * 1000);
+
+            feedbackRayLR.SetPosition(0, rightHandController.transform.position);
+            feedbackRayLR.SetPosition(1, rightHandController.transform.position + rightHandController.transform.TransformDirection(Vector3.forward) * 1000);
+
+            // update intersection sphere visualization
+            rightRayIntersectionSphere.SetActive(false); // hide
+        }
+
         // visualize feedback ray
         // YOUR CODE - END
     }
