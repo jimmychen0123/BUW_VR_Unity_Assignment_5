@@ -118,3 +118,9 @@ public class Argelaguet : MonoBehaviour
     }
 
 }
+
+/*break down usability into the following goals:
+ * 1. effectiveness: this technique is not affected by the eye-hand visibility mismatch
+   2. efficiency: this technique outperform raycasting in complex scenes where visibility plays an important role
+   3. learnability: this technique may not be intuitive enough to new users since the selection ray starts from head but controlled by hand.
+ */
